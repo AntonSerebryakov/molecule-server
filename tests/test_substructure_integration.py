@@ -5,16 +5,16 @@ from helpers import poll_task_result
 
 SEED = [
 
-  {"id": "XCompound_01", "smiles": "C1=CC(=CC=C1C(=O)O)N(CC)CCCCCCCCCCCCCCCC"},
-  {"id": "XCompound_02", "smiles": "CCN(CC)CCOC(=O)C1=CC=CC=C1CCCCCCCCCCCCCC"},
-  {"id": "XCompound_03", "smiles": "O=C(O)C1=CC=CC(=C1)C(CN)CCOCCCCCCCCCCCCC"},
-  {"id": "XCompound_04", "smiles": "C1CCN(CC1)CCOC(=O)C2=CC=CC=C2CCCCCCCCCCC"},
-  {"id": "XCompound_05", "smiles": "CC(C)NCC(O)C(=O)OCC1=CC=CC=C1CCCCCCCCCCC"},
-  {"id": "XCompound_06", "smiles": "CNC(=O)C1=CC=CC=C1CCN(CC)CCCCCCCCCCCCCCC"},
-  {"id": "XCompound_07", "smiles": "O=C(OC)C1=CC=CC=C1C(C)NCCOCCCCCCCCCCCCCC"},
-  {"id": "XCompound_08", "smiles": "C1=CC=C(C=C1)C(=O)OCCN(CC)CCOCCCCCCCCCCC"},
-  {"id": "XCompound_09", "smiles": "CCOC(=O)C1=CC=CC=C1C(N)CCOCCNCCCCCCCCCCC"},
-  {"id": "XCompound_10", "smiles": "C1CCOC1C(=O)NCCOCCN(CC)CCCCCCCCCCCCCCCCC"}
+  {"id": "xcompound_01", "smiles": "C1=CC(=CC=C1C(=O)O)N(CC)CCCCCCCCCCCCCCCC"},
+  {"id": "xcompound_02", "smiles": "CCN(CC)CCOC(=O)C1=CC=CC=C1CCCCCCCCCCCCCC"},
+  {"id": "xcompound_03", "smiles": "O=C(O)C1=CC=CC(=C1)C(CN)CCOCCCCCCCCCCCCC"},
+  {"id": "xcompound_04", "smiles": "C1CCN(CC1)CCOC(=O)C2=CC=CC=C2CCCCCCCCCCC"},
+  {"id": "xcompound_05", "smiles": "CC(C)NCC(O)C(=O)OCC1=CC=CC=C1CCCCCCCCCCC"},
+  {"id": "xcompound_06", "smiles": "CNC(=O)C1=CC=CC=C1CCN(CC)CCCCCCCCCCCCCCC"},
+  {"id": "xcompound_07", "smiles": "O=C(OC)C1=CC=CC=C1C(C)NCCOCCCCCCCCCCCCCC"},
+  {"id": "xcompound_08", "smiles": "C1=CC=C(C=C1)C(=O)OCCN(CC)CCOCCCCCCCCCCC"},
+  {"id": "xcompound_09", "smiles": "CCOC(=O)C1=CC=CC=C1C(N)CCOCCNCCCCCCCCCCC"},
+  {"id": "xcompound_10", "smiles": "C1CCOC1C(=O)NCCOCCN(CC)CCCCCCCCCCCCCCCCC"}
 
 ]
 
@@ -59,7 +59,7 @@ def test_03_poll_get_until_success_and_validate_hits(session: requests.Session, 
     result = res.get("result", {})
     hits = {m["id"] for m in result.get("matches", [])}
 
-    expected_any = {"XCompound_01", "XCompound_02", "XCompound_06", "XCompound_10"}
+    expected_any = {"xcompound_01", "xcompound_02", "xcompound_06", "xcompound_10"}
     assert hits & expected_any, f"expected any of {expected_any}, got {hits}"
 
 
@@ -72,7 +72,7 @@ def test_04_second_post_returns_cached_success_immediately(session: requests.Ses
     assert j.get("status") == "SUCCESS", f"expected immediate SUCCESS, got: {j}"
 
     hits = {m["id"] for m in j.get("result", {}).get("matches", [])}
-    expected_any = {"XCompound_01", "XCompound_02", "XCompound_06", "XCompound_10"}
+    expected_any = {"xcompound_01", "xcompound_02", "xcompound_06", "xcompound_10"}
     assert hits & expected_any, f"expected any of {expected_any}, got {hits}"
 
 def test_05_invalid_query_yields_failure(session: requests.Session, base_url: str):
@@ -94,7 +94,7 @@ def test_06_draw_existing_xcompound(session, base_url):
 
 def test_07_patch_update_existing(session, base_url, wait_for_api):
     
-    mol_id = "XCompound_02"
+    mol_id = "xcompound_02"
     new_smiles = "CCN(CC)CCOC(=O)C1=CC=CC=C1CCCCCCCCCCCCCN"
     r = session.get(f"{base_url}/molecule/{mol_id}", timeout=10)
     assert r.status_code == 200, f"GET /molecule/{mol_id} failed: {r.text}"

@@ -7,6 +7,7 @@ from schemas import Molecule, MoleculeUpdate
 
 
 async def create_molecule(session: AsyncSession, data: Molecule) -> Molecule:
+    data.id = data.id.lower()
     exists = await session.get(MoleculeORM, data.id)
     if exists:
         raise ValueError("Molecule ID already exists")
@@ -49,6 +50,7 @@ async def iter_molecules(
 
 async def update_molecule(session: AsyncSession, molecule_id: str,
                           data: MoleculeUpdate) -> Molecule:
+    molecule_id = molecule_id.lower()
     obj = await session.get(MoleculeORM, molecule_id)
     if not obj:
         return None
@@ -68,6 +70,7 @@ async def update_molecule(session: AsyncSession, molecule_id: str,
 
 async def delete_molecule(session: AsyncSession,
                           molecule_id: str) -> bool:
+    molecule_id = molecule_id.lower()
     obj = await session.get(MoleculeORM, molecule_id)
     if not obj:
         return False
@@ -78,6 +81,7 @@ async def delete_molecule(session: AsyncSession,
 
 
 async def get_molecule(session: AsyncSession, molecule_id: str) -> Molecule:
+    molecule_id = molecule_id.lower()
     obj = await session.get(MoleculeORM, molecule_id)
     if not obj:
         return None

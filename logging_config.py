@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import sys
 import os
@@ -8,7 +9,8 @@ LOG_DIR = Path(__file__).resolve().parent / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 RETENTION_DAYS = int(os.getenv("LOG_RETENTION_DAYS", "14"))
-LOG_FILE = LOG_DIR / "app.log"
+date_str = datetime.now().strftime("%d%m%y")
+LOG_FILE = LOG_DIR / f"log{date_str}.log"
 
 LOG_FORMAT = "[%(asctime)s] [%(levelname)s] %(name)s: %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -22,7 +24,6 @@ file_handler = TimedRotatingFileHandler(
     utc=False,
     delay=True,
 )
-file_handler.suffix = "%Y-%m-%d"
 file_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
 
 console_handler = logging.StreamHandler(sys.stdout)

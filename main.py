@@ -234,7 +234,7 @@ async def add_from_file(session: SessionDep, file: UploadFile = File(...)):
                                "content": line.rstrip("\n")})
                 continue
 
-            mol_id, smiles_raw = parts[0], parts[1]
+            mol_id, smiles_raw = parts[0].lower(), parts[1]
             canon = (smiles_raw)
             if canon is None:
                 invalid += 1
@@ -321,6 +321,7 @@ async def draw_molecule(
     fmt: str = Query("png", pattern="^(png|svg)$"),
     size: int = Query(300, ge=100, le=1200),
 ):
+    molecule_id = molecule_id.lower()
     obj = await session.get(MoleculeORM, molecule_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Molecule not found")
