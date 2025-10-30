@@ -64,7 +64,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/test_substructure.py -q --maxfail=3  --cov=.
+          pytest tests/test_substructure_integration.py -q --maxfail=3  --cov=.
     
       - name: Dump docker compose logs
         if: always()
