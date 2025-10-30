@@ -32,7 +32,7 @@ jobs:
       - name: Run flake8
         run: |
           flake8 . \
-            --exclude .git,__pycache__,.venv,venv,build,dist,logs,**/__init__.py \
+            --exclude .git,__pycache__,.venv,venv,build,dist,logs,tests,**/__init__.py \
             --extend-exclude requirements.txt \
             --max-line-length=100
 

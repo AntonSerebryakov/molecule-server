@@ -81,4 +81,4 @@ async def get_molecule(session: AsyncSession, molecule_id: str) -> Molecule:
     obj = await session.get(MoleculeORM, molecule_id)
     if not obj:
         return None
-    return Molecule(id = obj.id, smiles = obj.smiles)
+    return Molecule(id=obj.id, smiles=obj.smiles)

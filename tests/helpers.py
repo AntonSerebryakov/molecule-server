@@ -10,9 +10,6 @@ def poll_task_result(
     timeout: float = 20.0,
     interval: float = 0.5,
 ) -> t.Dict[str, t.Any]:
-    """
-    Ждём завершения Celery-задачи и возвращаем JSON-ответ с /search/tasks/{id}.
-    """
     url = f"{base_url}/search/tasks/{task_id}"
     deadline = time.time() + timeout
     last = None
