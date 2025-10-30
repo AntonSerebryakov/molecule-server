@@ -1,0 +1,63 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: mols-db
+    environment:
+      POSTGRES_DB: mols
+      POSTGRES_USER: mols
+      POSTGRES_PASSWORD: mols
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mols -d mols"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: mols-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    container_name: mols-api
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    command: uvicorn main:app --host 0.0.0.0 --port 8080
+    volumes:
+      - logsdata:/app/logs   # <-- именованный volume для логов
+
+  celery_worker:
+    build: .
+    container_name: mols-celery
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A celery_worker.celery worker --loglevel=info
+    restart: on-failure
+    volumes:
+      - logsdata:/app/logs
+
+volumes:
+  pgdata:
+  logsdata:

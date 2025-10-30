@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, dev ]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    env:
+      BASE_URL: http://localhost:8080
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install lint deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+
+      - name: Run flake8
+        run: |
+          flake8 . \
+            --exclude .git,__pycache__,.venv,venv,build,dist,logs,**/__init__.py \
+            --extend-exclude requirements.txt \
+            --max-line-length=100
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compose build & up
+        run: |
+          docker compose up -d --build
+          docker compose ps
+
+      - name: Wait for API healthy
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS ${BASE_URL}/docs > /dev/null; then
+              echo "API is up"
+              exit 0
+            fi
+            echo "Waiting API..."
+            sleep 2
+          done
+          echo "API didn't start in time" >&2
+          docker compose logs --tail=200
+          exit 1
+
+      - name: Install test deps
+        run: |
+          pip install pytest pytest-cov requests
+
+      - name: Run tests
+        run: |
+          pytest -q --maxfail=3  --cov=.
+
+    
+      - name: Dump docker compose logs
+        if: always()
+        run: |
+          mkdir -p artifacts
+          docker compose logs --no-color > artifacts/compose.log || true
+          docker cp mols-api:/app/logs artifacts/api-logs || true
+          docker cp mols-celery:/app/logs artifacts/celery-logs || true
+          ls -la artifacts || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs
+          path: artifacts
