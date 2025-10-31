@@ -1,11 +1,13 @@
 import json
 import os
+
 from rdkit import Chem
+import redis
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
+
 from celery_worker import celery as celery_app
 from models import MoleculeORM
-import redis
 
 SYNC_DATABASE_URL = os.getenv("SYNC_DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")

@@ -21,3 +21,10 @@ class MoleculeUpdate(BaseModel):
 
 class Molecule(MoleculeUpdate):
     id: str
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def id_lower(cls, v: str) -> str:
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError("ID must be a non-empty string")
+        return v.strip().lower()

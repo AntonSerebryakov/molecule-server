@@ -1,16 +1,10 @@
 from __future__ import annotations
 
-import os
-import io
-import re
 import json
+import os
 from typing import Annotated, List, Optional
 
-import logging_config
-
-
 from celery.result import AsyncResult
-
 from fastapi import (
     FastAPI,
     HTTPException,
@@ -21,21 +15,21 @@ from fastapi import (
     File,
     UploadFile,
 )
-
-from rdkit.Chem.Draw import rdMolDraw2D
-from rdkit.Chem import rdDepictor, MolFromSmiles, MolToSmiles
+from rdkit.Chem import MolFromSmiles
 from redis import asyncio as aioredis
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+import logging_config
+
 
 import crud
 from database import engine, Base, get_session
-
+from utils import import_uploadfile, canon_smiles
 from models import MoleculeORM
 from schemas import Molecule, MoleculeUpdate
 from tasks import substructure_search_task
 from celery_worker import celery as celery_app
+from draw import draw_molecule
 
 SEARCH_CACHE_PREFIX = os.getenv("SEARCH_CACHE_PREFIX", "cache:search:")
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
@@ -74,14 +68,6 @@ async def on_shutdown() -> None:
             await r.close()
         except Exception:
             pass
-
-
-def canon_smiles_or_none(s: str) -> str | None:
-    s = (s or "").strip()
-    mol = MolFromSmiles(s)
-    if mol is None:
-        return None
-    return MolToSmiles(mol, canonical=True)
 
 
 async def redis_clear() -> None:
@@ -199,123 +185,24 @@ async def get_substr_result(task_id: str):
 
 @app.post("/add/file")
 async def add_from_file(session: SessionDep, file: UploadFile = File(...)):
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No file provided")
-
-    added = 0
-    skipped_id_exists = 0
-    skipped_smiles_exists = 0
-    invalid = 0
-    errors: list[dict] = []
-    total_lines = 0
-
-    BATCH = 1000
-    to_insert: list[MoleculeORM] = []
-    ws = re.compile(r"\s+")
-
     try:
-        file.file.seek(0)
-    except Exception:
-        pass
+        loaded = await import_uploadfile(
+            session,
+            file,
+            batch_size=1000,
+            validate_smiles=True,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    with io.TextIOWrapper(file.file, encoding="utf-8", errors="replace") as b:
-        for line_no, line in enumerate(b, start=1):
-            total_lines = line_no
-            s = line.strip()
-            if not s or s.startswith("#"):
-                continue
-
-            parts = [
-                p.strip() for p in s.split(",")] if "," in s else ws.split(s)
-            if len(parts) < 2 or not parts[0]:
-                invalid += 1
-                errors.append({"line": line_no,
-                               "error": "Expected: 'id,smiles' or 'id smiles'",
-                               "content": line.rstrip("\n")})
-                continue
-
-            mol_id, smiles_raw = parts[0].lower(), parts[1]
-            canon = (smiles_raw)
-            if canon is None:
-                invalid += 1
-                errors.append({"line": line_no, "error": "Invalid SMILES",
-                               "content": line.rstrip("\n")})
-                continue
-
-            to_insert.append(MoleculeORM(id=mol_id, smiles=canon))
-
-            if len(to_insert) >= BATCH:
-                session.add_all(to_insert)
-                try:
-                    await session.commit()
-                    added += len(to_insert)
-                    to_insert.clear()
-                except IntegrityError:
-                    await session.rollback()
-                    for obj in to_insert:
-                        try:
-                            session.add(obj)
-                            await session.commit()
-                            added += 1
-                        except IntegrityError:
-                            await session.rollback()
-                            if await session.get(MoleculeORM, obj.id):
-                                skipped_id_exists += 1
-                            else:
-                                existed = (await session.execute(
-                                    select(MoleculeORM.id).where(
-                                        MoleculeORM.smiles == obj.smiles)
-                                )).first()
-                                if existed:
-                                    skipped_smiles_exists += 1
-                                else:
-                                    invalid += 1
-                    to_insert.clear()
-
-    if to_insert:
-        session.add_all(to_insert)
-        try:
-            await session.commit()
-            added += len(to_insert)
-        except IntegrityError:
-            await session.rollback()
-            for obj in to_insert:
-                try:
-                    session.add(obj)
-                    await session.commit()
-                    added += 1
-                except IntegrityError:
-                    await session.rollback()
-                    if await session.get(MoleculeORM, obj.id):
-                        skipped_id_exists += 1
-                    else:
-                        existed = (await session.execute(
-                            select(MoleculeORM.id).where(
-                                MoleculeORM.smiles == obj.smiles)
-                        )).first()
-                        if existed:
-                            skipped_smiles_exists += 1
-                        else:
-                            invalid += 1
-
-    if added > 0:
+    if loaded["summary"]["added"] > 0:
         await redis_clear()
-    return {
-        "file": file.filename,
-        "summary": {
-            "added": added,
-            "skipped_id_exists": skipped_id_exists,
-            "skipped_smiles_exists": skipped_smiles_exists,
-            "invalid": invalid,
-            "total_lines": total_lines,
-        },
-        "errors": errors,
-        "hint": "Formats: 'id,smiles' or 'id smiles'. Lines with '#' ignores.",
-    }
+
+    return loaded
 
 
-@app.get("/draw/{molecule_id}")
-async def draw_molecule(
+@app.get("/draw_by_id/{molecule_id}")
+async def draw_molecule_by_id(
     molecule_id: str,
     session: SessionDep,
     fmt: str = Query("png", pattern="^(png|svg)$"),
@@ -327,29 +214,19 @@ async def draw_molecule(
         raise HTTPException(status_code=404, detail="Molecule not found")
 
     mol = MolFromSmiles(obj.smiles)
-    if mol is None:
-        raise HTTPException(status_code=500, detail="Stored SMILES is invalid")
+    result = await draw_molecule(mol=mol, fmt=fmt, size=size)
+    return result
 
-    rdDepictor.SetPreferCoordGen(True)
-    rdDepictor.Compute2DCoords(mol)
 
-    if fmt == "svg":
-        drawer = rdMolDraw2D.MolDraw2DSVG(size, size)
-    else:
-        drawer = rdMolDraw2D.MolDraw2DCairo(size, size)
-
-    opts = drawer.drawOptions()
-    opts.useBWAtomPalette = False
-    opts.addAtomIndices = True
-    for a in mol.GetAtoms():
-        if a.GetSymbol() == "C":
-            opts.atomLabels[a.GetIdx()] = "C"
-
-    rdMolDraw2D.PrepareAndDrawMolecule(drawer, mol)
-    drawer.FinishDrawing()
-
-    if fmt == "svg":
-        svg = drawer.GetDrawingText().encode("utf-8")
-        return Response(svg, media_type="image/svg+xml")
-    png = drawer.GetDrawingText()
-    return Response(png, media_type="image/png")
+@app.get("/draw_by_smiles")
+async def draw_molecule_by_smyle(
+    smile: str = Query(),
+    fmt: str = Query("png", pattern="^(png|svg)$"),
+    size: int = Query(300, ge=100, le=1200),
+):
+    smile = canon_smiles(smile, validate=True)
+    if not smile:
+        raise HTTPException(status_code=400, detail="Invalid SMILES format")
+    mol = MolFromSmiles(smile)
+    result = await draw_molecule(mol=mol, fmt=fmt, size=size)
+    return result

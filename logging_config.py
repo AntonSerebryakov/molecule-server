@@ -1,7 +1,8 @@
 from datetime import datetime
 import logging
-import sys
 import os
+import sys
+
 from pathlib import Path
 from logging.handlers import TimedRotatingFileHandler
 

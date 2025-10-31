@@ -8,15 +8,18 @@ BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8080")
 POLL_INTERVAL = float(os.getenv("TEST_POLL_INTERVAL", "0.5"))
 POLL_TIMEOUT = float(os.getenv("TEST_POLL_TIMEOUT", "20.0"))
 
+
 @pytest.fixture(scope="session")
 def base_url() -> str:
     return BASE_URL
+
 
 @pytest.fixture(scope="session")
 def session() -> requests.Session:
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
     return s
+
 
 @pytest.fixture(scope="session")
 def wait_for_api(base_url: str):

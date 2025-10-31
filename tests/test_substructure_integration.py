@@ -1,6 +1,6 @@
 import pytest
-import json
 import requests
+
 from helpers import poll_task_result
 
 SEED = [
@@ -27,8 +27,13 @@ def test_00_seed_data(wait_for_api, session, base_url):
         assert r.status_code in (200, 201), f"/add failed for {m['id']}: {r.status_code} {r.text}"
 
 
-def test_01_duplicate_creation_returns_400(session, base_url):
-    ids = [SEED[0]["id"], SEED[1]["id"]]
+def test_01_add_bad_data(wait_for_api, session, base_url):
+    m = {"id": "xcompound_X", "smiles": "BHbk"}
+    r = session.post(f"{base_url}/add", json=m, timeout=10)
+    assert r.status_code == 422, f"/add failed for {m}: {r.status_code} {r.text}"
+
+
+def test_02_duplicate_creation_returns_400(session, base_url):
     for mol in SEED[:2]:
         session.post(f"{base_url}/add", json=mol, timeout=10)  # результат не критичен
 
@@ -37,7 +42,7 @@ def test_01_duplicate_creation_returns_400(session, base_url):
         assert r.status_code == 400, f"Expected 400 for duplicate {mol['id']}, got {r.status_code} {r.text}"
 
 
-def test_02_first_post_returns_pending_and_not_cached(session: requests.Session, base_url: str):
+def test_03_first_post_returns_pending_and_not_cached(session: requests.Session, base_url: str):
     r = session.post(f"{base_url}/search/tasks", params={"query": SUBSTRUCTURE}, timeout=10)
     r.raise_for_status()
     j = r.json()
@@ -49,7 +54,7 @@ def test_02_first_post_returns_pending_and_not_cached(session: requests.Session,
     pytest.task_id_for_long_chain = j["task_id"]
 
 
-def test_03_poll_get_until_success_and_validate_hits(session: requests.Session, base_url: str):
+def test_04_poll_get_until_success_and_validate_hits(session: requests.Session, base_url: str):
     task_id = getattr(pytest, "task_id_for_long_chain", None)
     assert task_id, "missing task id from previous test"
 
@@ -63,7 +68,7 @@ def test_03_poll_get_until_success_and_validate_hits(session: requests.Session, 
     assert hits & expected_any, f"expected any of {expected_any}, got {hits}"
 
 
-def test_04_second_post_returns_cached_success_immediately(session: requests.Session, base_url: str):
+def test_05_second_post_returns_cached_success_immediately(session: requests.Session, base_url: str):
     r = session.post(f"{base_url}/search/tasks", params={"query": SUBSTRUCTURE}, timeout=10)
     r.raise_for_status()
     j = r.json()
@@ -75,7 +80,8 @@ def test_04_second_post_returns_cached_success_immediately(session: requests.Ses
     expected_any = {"xcompound_01", "xcompound_02", "xcompound_06", "xcompound_10"}
     assert hits & expected_any, f"expected any of {expected_any}, got {hits}"
 
-def test_05_invalid_query_yields_failure(session: requests.Session, base_url: str):
+
+def test_06_invalid_query_yields_failure(session: requests.Session, base_url: str):
     r = session.post(f"{base_url}/search/tasks", params={"query": "[*INVALID*"}, timeout=10)
     r.raise_for_status()
     task_id = r.json()["task_id"]
@@ -83,24 +89,39 @@ def test_05_invalid_query_yields_failure(session: requests.Session, base_url: st
     assert res["status"] == "FAILURE", f"Unexpected: {res}"
     assert "error" in res
 
-def test_06_draw_existing_xcompound(session, base_url):
+
+def test_07_draw_existing_xcompound(session, base_url):
     mol_id = "XCompound_01"
-    r = session.get(f"{base_url}/draw/{mol_id}", params={"fmt": "png", "size": 300}, timeout=10)
+    r = session.get(f"{base_url}/draw_by_id/{mol_id}", params={"fmt": "png", "size": 300}, timeout=10)
     assert r.status_code == 200, f"Unexpected status {r.status_code}: {r.text}"
     assert r.headers.get("content-type") == "image/png"
     assert r.content.startswith(b"\x89PNG\r\n\x1a\n"), "Ответ не выглядит как PNG"
     assert len(r.content) > 1000, "слишком маленький PNG (возможно пустой)"
 
 
-def test_07_patch_update_existing(session, base_url, wait_for_api):
-    
+def test_08_draw_abstract_smile(session, base_url):
+    smile = "CC(C)CC1=CC=C(C=C1)C(=O)NCC(O)COC2=CC=CC(=C2)OCCCCCCC(=O)OCCN"
+    r = session.get(f"{base_url}/draw_by_smiles", params={"smile": smile, "fmt": "png", "size": 300}, timeout=10)
+    assert r.status_code == 200, f"Unexpected status {r.status_code}: {r.text}"
+    assert r.headers.get("content-type") == "image/png"
+    assert r.content.startswith(b"\x89PNG\r\n\x1a\n"), "Ответ не выглядит как PNG"
+    assert len(r.content) > 1000, "слишком маленький PNG (возможно пустой)"
+
+
+def test_9_draw_bad_smile(session, base_url):
+    smile = "^&("
+    r = session.get(f"{base_url}/draw_by_smiles", params={"smile": smile, "fmt": "png", "size": 300}, timeout=10)
+    assert r.status_code == 400, f"Unexpected status {r.status_code}: {r.text}"
+
+
+def test_10_patch_update_existing(session, base_url, wait_for_api):
     mol_id = "xcompound_02"
     new_smiles = "CCN(CC)CCOC(=O)C1=CC=CC=C1CCCCCCCCCCCCCN"
     r = session.get(f"{base_url}/molecule/{mol_id}", timeout=10)
     assert r.status_code == 200, f"GET /molecule/{mol_id} failed: {r.text}"
     original = r.json()
     original_smiles = original["smiles"]
-    
+
     r = session.patch(
         f"{base_url}/patch/{mol_id}",
         json={"smiles": new_smiles},
@@ -119,8 +140,7 @@ def test_07_patch_update_existing(session, base_url, wait_for_api):
     )
 
 
-
-def test_08_delete_all_seeded(session, base_url):
+def test_11_delete_all_seeded(session, base_url):
 
     for m in SEED:
         r = session.delete(f"{base_url}/delete/{m['id']}", timeout=10)
