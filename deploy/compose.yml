@@ -1,14 +1,15 @@
 services:
   db:
     image: postgres:15-alpine
+    env_file: .env
     environment:
-      POSTGRES_DB: mols
-      POSTGRES_USER: mols
-      POSTGRES_PASSWORD: mols
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mols_dev -d mols_dev"]
+      test: CMD-SHELL pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
       interval: 5s
       timeout: 3s
       retries: 10
