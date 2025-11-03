@@ -107,7 +107,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Sanity: show workspace
+      - name: Sanity show workspace
         run: |
           pwd
           ls -la
