@@ -158,7 +158,7 @@ jobs:
           script: |
             set -euxo pipefail
             cd /home/anton/app/deploy
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker login ghcr.io -u ${{ github.actor }} -p "${{ secrets.GHCR_PAT }}"
             docker compose pull api celery_worker
             docker compose up -d db redis api celery_worker nginx
             docker image prune -f

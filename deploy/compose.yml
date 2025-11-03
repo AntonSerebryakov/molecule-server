@@ -38,7 +38,7 @@ services:
     restart: unless-stopped
 
   celery_worker:
-    image: ghcr.io/antonaerebryakov/molecule-server:dev
+    image: ghcr.io/antonserebryakov/molecule-server:dev
     env_file: .env
     depends_on:
       db: { condition: service_healthy }
