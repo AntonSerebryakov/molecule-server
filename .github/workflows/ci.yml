@@ -160,5 +160,5 @@ jobs:
             cd /home/anton/app/deploy
             docker login ghcr.io -u ${{ github.actor }} -p "${{ secrets.GHCR_PAT }}"
             docker compose pull api celery_worker
-            docker compose up -d db redis api celery_worker nginx
+            docker compose up -d db redis api celery_worker
             docker image prune -f
