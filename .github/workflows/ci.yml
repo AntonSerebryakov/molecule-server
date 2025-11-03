@@ -141,6 +141,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
           source: "./deploy/compose.yml,./deploy/nginx.conf"
           target: "/home/anton/app/deploy"
           overwrite: true
@@ -152,6 +153,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             set -euxo pipefail
             cd /home/anton/app/deploy
