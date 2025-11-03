@@ -144,7 +144,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           source: "./deploy/compose.yml,./deploy/nginx.conf"
-          target: "/home/anton/app/deploy"
+          target: "/home/anton/app/"
           overwrite: true
           debug: true
 
