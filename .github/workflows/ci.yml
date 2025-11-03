@@ -106,8 +106,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "deploy/compose.yml,deploy/nginx.conf"
-          target: "/home/${{ secrets.SSH_USER }}/app"
+          source: "./deploy/compose.yml,./deploy/nginx.conf"
+          target: "/home/anton/app/deploy"
 
       - name: Deploy (pull & up -d)
         run: |
