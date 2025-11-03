@@ -116,7 +116,7 @@ jobs:
           test -f ./deploy/compose.yml
           test -f ./deploy/nginx.conf
 
-      - name: Prepare SSH
+      - name: Prepare SSH files
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
@@ -141,18 +141,21 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: ./deploy/compose.yml,./deploy/nginx.conf
-          target: /home/anton/app/deploy
+          source: "./deploy/compose.yml,./deploy/nginx.conf"
+          target: "/home/anton/app/deploy"
           overwrite: true
           debug: true
 
-      - name: Deploy (pull & up -d)
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
-          set -euxo pipefail
-          cd ~/app/deploy
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker compose pull api celery_worker
-          docker compose up -d db redis api celery_worker nginx
-          docker image prune -f
-          EOF
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -euxo pipefail
+            cd /home/anton/app/deploy
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose pull api celery_worker
+            docker compose up -d db redis api celery_worker nginx
+            docker image prune -f
