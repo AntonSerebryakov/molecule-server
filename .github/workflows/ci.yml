@@ -89,6 +89,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   deploy-dev:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     needs: build-and-push-dev
     runs-on: ubuntu-latest
     steps:
@@ -119,6 +120,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -eux
             mkdir -p /home/anton/app/deploy
             ls -la /home/anton/app/deploy
 
@@ -128,8 +130,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "./deploy/compose.yml,./deploy/nginx.conf"  # файлы в репо
-          target: "/home/anton/app/deploy"                    # папка на сервере
+          source: "./deploy/compose.yml,./deploy/nginx.conf"
+          target: "/home/anton/app/deploy"
           overwrite: true
           debug: true
 
