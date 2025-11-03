@@ -108,6 +108,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "./deploy/compose.yml,./deploy/nginx.conf"
           target: "/home/anton/app/deploy"
+          overwrite: true
+          debug: true
 
       - name: Deploy (pull & up -d)
         run: |
@@ -115,7 +117,6 @@ jobs:
           set -euxo pipefail
           cd ~/app/deploy
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          # тянем новый :dev и запускаем стек
           docker compose pull api celery_worker
           docker compose up -d db redis api celery_worker nginx
           docker image prune -f
