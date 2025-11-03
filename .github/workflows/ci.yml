@@ -89,57 +89,57 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   deploy-dev:
-  needs: build-and-push-dev
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
+    needs: build-and-push-dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-    - name: Sanity: show workspace
-      run: |
-        pwd
-        ls -la
-        ls -la deploy || true
-        test -f ./deploy/compose.yml
-        test -f ./deploy/nginx.conf
+      - name: Sanity: show workspace
+        run: |
+          pwd
+          ls -la
+          ls -la deploy || true
+          test -f ./deploy/compose.yml
+          test -f ./deploy/nginx.conf
 
-    - name: Prepare SSH
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-        chmod 600 ~/.ssh/id_ed25519
-        echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-        chmod 644 ~/.ssh/known_hosts
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
-    - name: Ensure target dir on server
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          mkdir -p /home/anton/app/deploy
-          ls -la /home/anton/app/deploy
+      - name: Ensure target dir on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            mkdir -p /home/anton/app/deploy
+            ls -la /home/anton/app/deploy
 
-    - name: Copy deploy files (compose.yml + nginx.conf)
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        source: "./deploy/compose.yml,./deploy/nginx.conf"  # файлы в репо
-        target: "/home/anton/app/deploy"                    # папка на сервере
-        overwrite: true
-        debug: true
+      - name: Copy deploy files (compose.yml + nginx.conf)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "./deploy/compose.yml,./deploy/nginx.conf"  # файлы в репо
+          target: "/home/anton/app/deploy"                    # папка на сервере
+          overwrite: true
+          debug: true
 
-    - name: Deploy (pull & up -d)
-      run: |
-        ssh -i ~/.ssh/id_ed25519 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
-        set -euxo pipefail
-        cd ~/app/deploy
-        echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-        docker compose pull api celery_worker
-        docker compose up -d db redis api celery_worker nginx
-        docker image prune -f
-        EOF
+      - name: Deploy (pull & up -d)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
+          set -euxo pipefail
+          cd ~/app/deploy
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker compose pull api celery_worker
+          docker compose up -d db redis api celery_worker nginx
+          docker image prune -f
+          EOF
