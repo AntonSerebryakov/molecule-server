@@ -2,7 +2,7 @@ name: CI + Deploy (dev only)
 
 on:
   push:
-    branches: [ dev ]
+    branches: [dev]
   pull_request:
   workflow_dispatch:
 
@@ -14,12 +14,16 @@ env:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
-    permissions: { contents: read }
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
       - name: Install lint deps
         run: |
@@ -33,7 +37,8 @@ jobs:
             --extend-exclude requirements.txt \
             --max-line-length=100
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Compose build & up
         run: |
@@ -43,16 +48,19 @@ jobs:
       - name: Wait for API healthy
         run: |
           for i in $(seq 1 60); do
-            if curl -fsS ${BASE_URL}/docs > /dev/null; then exit 0; fi
+            if curl -fsS "${BASE_URL}/docs" > /dev/null; then exit 0; fi
             echo "Waiting API..."; sleep 2
           done
-          docker compose logs --tail=200; exit 1
+          docker compose logs --tail=200
+          exit 1
 
       - name: Install test deps
-        run: pip install pytest pytest-cov requests
+        run: |
+          pip install pytest pytest-cov requests
 
       - name: Run tests
-        run: pytest tests/test_substructure_integration.py -q --maxfail=3 --cov=.
+        run: |
+          pytest tests/test_substructure_integration.py -q --maxfail=3 --cov=.
 
   build-and-push-dev:
     needs: lint-and-test
@@ -61,7 +69,8 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -93,7 +102,8 @@ jobs:
     needs: build-and-push-dev
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -101,6 +111,7 @@ jobs:
         run: |
           pwd
           ls -la
+          echo "--- deploy dir ---"
           ls -la deploy || true
           test -f ./deploy/compose.yml
           test -f ./deploy/nginx.conf
@@ -130,8 +141,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "./deploy/compose.yml,./deploy/nginx.conf"
-          target: "/home/anton/app/deploy"
+          source: ./deploy/compose.yml,./deploy/nginx.conf
+          target: /home/anton/app/deploy
           overwrite: true
           debug: true
 
