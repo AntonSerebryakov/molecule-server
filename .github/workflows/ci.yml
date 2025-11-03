@@ -1,28 +1,25 @@
-name: CI
+name: CI + Deploy (dev only)
 
 on:
   push:
-    branches: [ main, master, dev ]
+    branches: [ dev ]
   pull_request:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  BASE_URL: http://localhost:8080
 
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-
-    env:
-      BASE_URL: http://localhost:8080
-
+    permissions: { contents: read }
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
 
       - name: Install lint deps
         run: |
@@ -36,8 +33,7 @@ jobs:
             --extend-exclude requirements.txt \
             --max-line-length=100
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - name: Compose build & up
         run: |
@@ -47,37 +43,80 @@ jobs:
       - name: Wait for API healthy
         run: |
           for i in $(seq 1 60); do
-            if curl -fsS ${BASE_URL}/docs > /dev/null; then
-              echo "API is up"
-              exit 0
-            fi
-            echo "Waiting API..."
-            sleep 2
+            if curl -fsS ${BASE_URL}/docs > /dev/null; then exit 0; fi
+            echo "Waiting API..."; sleep 2
           done
-          echo "API didn't start in time" >&2
-          docker compose logs --tail=200
-          exit 1
+          docker compose logs --tail=200; exit 1
 
       - name: Install test deps
-        run: |
-          pip install pytest pytest-cov requests
+        run: pip install pytest pytest-cov requests
 
       - name: Run tests
-        run: |
-          pytest tests/test_substructure_integration.py -q --maxfail=3  --cov=.
-    
-      - name: Dump docker compose logs
-        if: always()
-        run: |
-          mkdir -p artifacts
-          docker compose logs --no-color > artifacts/compose.log || true
-          docker cp mols-api:/app/logs artifacts/api-logs || true
-          docker cp mols-celery:/app/logs artifacts/celery-logs || true
-          ls -la artifacts || true
+        run: pytest tests/test_substructure_integration.py -q --maxfail=3 --cov=.
 
-      - name: Upload artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+  build-and-push-dev:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          name: ci-logs
-          path: artifacts
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=dev
+            type=sha
+
+      - name: Build and push (:dev)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy-dev:
+    needs: build-and-push-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Copy deploy files (compose.yml + nginx.conf)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "deploy/compose.yml,deploy/nginx.conf"
+          target: "/home/${{ secrets.SSH_USER }}/app"
+
+      - name: Deploy (pull & up -d)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
+          set -euxo pipefail
+          cd ~/app/deploy
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          # тянем новый :dev и запускаем стек
+          docker compose pull api celery_worker
+          docker compose up -d db redis api celery_worker nginx
+          docker image prune -f
+          EOF
