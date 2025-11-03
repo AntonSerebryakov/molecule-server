@@ -114,7 +114,7 @@ async def import_uploadfile(
 
             batch.append(MoleculeORM(id=mol_id, smiles=canon))
             if len(batch) >= batch_size:
-                a, ki, ks, inv = await (session, batch)
+                a, ki, ks, inv = await flush_batch(session, batch)
                 added += a
                 skipped_id += ki
                 skipped_smiles += ks
@@ -122,7 +122,7 @@ async def import_uploadfile(
                 batch.clear()
 
     if batch:
-        a, ki, ks, inv = await (session, batch)
+        a, ki, ks, inv = await flush_batch(session, batch)
         added += a
         skipped_id += ki
         skipped_smiles += ks
